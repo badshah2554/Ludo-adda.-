@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+<title>Ludo Adda</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Karla:wght@400;600;700&display=swap">
+<style>
+/* Layout: one play column (turn bar + square board) with setup, players and rules in a side column on wide screens. */
+:root{
+  --bg:#EDF0F3; --fg:#161B22; --muted:#5C6773; --panel:#FFFFFF; --line:#C9D1DA;
+  --cell:#FFFFFF; --yardin:#F6F8FA;
+  --c0:#D9473F; --c1:#2F9D5E; --c2:#2D6CDF; --c3:#EDB021;
+  --cur:var(--c0); --pip:#FFFFFF;
+  --font-d:'Baloo 2','Trebuchet MS',system-ui,sans-serif;
+  --font-b:'Karla',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161C; --fg:#E8ECF1; --muted:#9AA5B1; --panel:#1B212A; --line:#3A4451;
+    --cell:#222A35; --yardin:#171C24; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161C; --fg:#E8ECF1; --muted:#9AA5B1; --panel:#1B212A; --line:#3A4451;
+  --cell:#222A35; --yardin:#171C24; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font-b); font-size:16px; line-height:1.45;
+  padding-block:20px 40px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:940px; margin:0 auto}
+header{margin-bottom:18px}
+h1{font-family:var(--font-d); font-weight:800; font-size:clamp(2rem,7vw,2.8rem); line-height:1; margin:0; letter-spacing:.01em; text-wrap:balance}
+.sub{margin:6px 0 0; color:var(--muted); max-width:46ch}
+.main{display:flex; flex-direction:column; gap:16px}
+.side{display:contents}
+.setup{order:1} .turn{order:2} .boardwrap{order:3} .players{order:4} .rules{order:5} .again{order:6}
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0}
+.panel h2{font-family:var(--font-d); font-size:1.15rem; margin:0 0 10px; font-weight:600}
+.field{margin-bottom:14px}
+.field>label,.field>span.lbl{display:block; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:6px; font-weight:700}
+.seg{display:flex; gap:8px; flex-wrap:wrap}
+.seg button{
+  font:600 15px var(--font-b); color:var(--fg); background:transparent; border:1px solid var(--line);
+  padding:9px 14px; border-radius:10px; cursor:pointer; min-width:48px;
+}
+.seg button[aria-pressed="true"]{background:var(--fg); color:var(--bg); border-color:var(--fg)}
+.btn{
+  font:700 16px var(--font-b); background:var(--fg); color:var(--bg); border:0; border-radius:12px;
+  padding:12px 20px; cursor:pointer; width:100%;
+}
+.btn.ghost{background:transparent; color:var(--fg); border:1px solid var(--line); width:auto; padding:9px 14px; font-size:15px}
+.colors{display:flex; gap:14px; flex-wrap:wrap}
+.cb{width:44px; height:44px; border-radius:50%; border:0; background:var(--c); cursor:pointer; box-shadow:0 0 0 2px var(--panel), 0 0 0 3px var(--line)}
+.cb[aria-pressed="true"]{box-shadow:0 0 0 3px var(--panel), 0 0 0 6px var(--fg)}
+button:focus-visible{outline:3px solid var(--cur); outline-offset:2px}
+.turn{display:flex; align-items:center; gap:16px; min-width:0}
+.dice{
+  flex:none; width:76px; height:76px; border-radius:18px; border:0; background:var(--cur);
+  display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); padding:13px; cursor:pointer;
+  box-shadow:0 4px 0 rgba(0,0,0,.28);
+}
+.dice i{display:block; width:12px; height:12px; border-radius:50%; margin:auto; background:transparent}
+.dice i.on{background:var(--pip)}
+.dice:disabled{cursor:default; opacity:.9}
+.dice.rolling{animation:shake .32s linear infinite}
+@keyframes shake{0%{transform:rotate(0)}25%{transform:rotate(-9deg) translateY(-2px)}50%{transform:rotate(0)}75%{transform:rotate(9deg) translateY(-2px)}100%{transform:rotate(0)}}
+.tt{min-width:0}
+#stext{font-family:var(--font-d); font-weight:600; font-size:clamp(1.15rem,4.6vw,1.45rem); line-height:1.15; margin:0; text-wrap:balance}
+#shint{margin:4px 0 0; color:var(--muted); font-size:.92rem}
+.boardwrap{width:100%; max-width:560px; min-width:0}
+#board{display:block; width:100%; border-radius:14px; touch-action:manipulation}
+.chips{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px}
+.chip{display:flex; align-items:center; gap:10px; border:2px solid var(--line); border-radius:12px; padding:8px 10px; min-width:0}
+.chip.act{border-color:var(--c)}
+.chip .d{flex:none; width:16px; height:16px; border-radius:50%; background:var(--c)}
+.chip b{font-family:var(--font-d); font-weight:600; font-size:1.02rem; line-height:1.1}
+.chip small{display:block; color:var(--muted); font-size:.8rem}
+.chip .n{margin-left:auto; font-variant-numeric:tabular-nums; font-weight:700}
+.rules ul{margin:0; padding-left:1.1rem; display:grid; gap:6px; color:var(--muted)}
+.rules li b{color:var(--fg)}
+@media (min-width:900px){
+  .main{display:grid; grid-template-columns:minmax(0,560px) 320px; gap:16px 36px; align-items:start}
+  .main>*,.side>*{order:0}
+  .turn{grid-column:1}
+  .boardwrap{grid-column:1}
+  .side{display:flex; flex-direction:column; gap:16px; grid-column:2; grid-row:1 / span 2}
+}
+@media (prefers-reduced-motion: reduce){.dice.rolling{animation:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Ludo Adda</h1>
+    <p class="sub">2 se 4 khiladi. Token bahar nikalne ke liye 6 chahiye, aur ghar pahunchne ke liye exact number.</p>
+  </header>
+
+  <div class="main">
+    <div class="side">
+      <section class="panel setup" id="setup">
+        <h2>Game ki settings</h2>
+        <div class="field">
+          <span class="lbl" id="l3">Game ka type</span>
+          <div class="seg" id="segG" role="group" aria-labelledby="l3">
+            <button type="button" data-v="classic" aria-pressed="true" id="gcl">Classic (4 token)</button>
+            <button type="button" data-v="rush" aria-pressed="false" id="grs">Rush Mode (2 token)</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl" id="l0">Apna rang chuno</span>
+          <div class="colors" id="segC" role="group" aria-labelledby="l0">
+            <button type="button" class="cb" data-v="2" style="--c:var(--c2)" aria-pressed="false" aria-label="Neela" id="cb2"></button>
+            <button type="button" class="cb" data-v="0" style="--c:var(--c0)" aria-pressed="true" aria-label="Laal" id="cb0"></button>
+            <button type="button" class="cb" data-v="1" style="--c:var(--c1)" aria-pressed="false" aria-label="Hara" id="cb1"></button>
+            <button type="button" class="cb" data-v="3" style="--c:var(--c3)" aria-pressed="false" aria-label="Peela" id="cb3"></button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl" id="l1">Kitne khiladi</span>
+          <div class="seg" id="segN" role="group" aria-labelledby="l1">
+            <button type="button" data-v="2" aria-pressed="false" id="n2">2</button>
+            <button type="button" data-v="3" aria-pressed="false" id="n3">3</button>
+            <button type="button" data-v="4" aria-pressed="true" id="n4">4</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl" id="l2">Kiske saath</span>
+          <div class="seg" id="segM" role="group" aria-labelledby="l2">
+            <button type="button" data-v="cpu" aria-pressed="true" id="mcpu">Computer ke saath</button>
+            <button type="button" data-v="friends" aria-pressed="false" id="mfr">Pass n Play (dost ke saath)</button>
+          </div>
+        </div>
+        <button class="btn" id="start" type="button">Game shuru karo</button>
+      </section>
+
+      <section class="panel players" aria-label="Khiladi">
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section class="panel rules">
+        <h2>Niyam</h2>
+        <ul>
+          <li><b>6 aaye</b> tabhi token yard se bahar nikalta hai.</li>
+          <li><b>6, token kaatna ya ghar pahunchna</b> par dobara phenko.</li>
+          <li><b>Star aur rang wale square</b> safe hain, wahan token nahi katta.</li>
+          <li><b>Lagatar teen 6</b> aaye to baari chali jaati hai.</li>
+          <li>Jiske <b>sabhi token</b> pehle beech mein pahunche, wahi jeetega.</li>
+          <li><b>Rush Mode</b> mein har khiladi ke sirf 2 token hote hain, isliye game jaldi khatam hota hai.</li>
+        </ul>
+      </section>
+
+      <div class="again"><button class="btn ghost" id="newgame" type="button" hidden>Naya game</button></div>
+    </div>
+
+    <div class="turn" id="turn">
+      <button class="dice" id="dice" type="button" aria-label="Dice phenko"></button>
+      <div class="tt" aria-live="polite">
+        <p id="stext">Ludo ke liye taiyaar?</p>
+        <p id="shint">Khiladi chuno aur game shuru karo.</p>
+      </div>
+    </div>
+
+    <div class="boardwrap" id="boardwrap"><canvas id="board" aria-label="Ludo board"></canvas></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var RM = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // 52-cell track, clockwise, starting at Laal's start square.
+  var TRACK = [];
+  function add(c,r){ TRACK.push([c,r]); }
+  var c, r;
+  for(c=1;c<=5;c++) add(c,6);
+  for(r=5;r>=0;r--) add(6,r);
+  add(7,0);
+  for(r=0;r<=5;r++) add(8,r);
+  for(c=9;c<=14;c++) add(c,6);
+  add(14,7);
+  for(c=14;c>=9;c--) add(c,8);
+  for(r=9;r<=14;r++) add(8,r);
+  add(7,14);
+  for(r=14;r>=9;r--) add(6,r);
+  for(c=5;c>=0;c--) add(c,8);
+  add(0,7); add(0,6);
+
+  var START = [0,13,26,39];
+  var SAFE = {}; [0,13,26,39,8,21,34,47].forEach(function(i){ SAFE[i]=true; });
+  var STARS = [8,21,34,47];
+  var NAMES = ['Laal','Hara','Neela','Peela'];
+  var YARD = [[0,0],[9,0],[9,9],[0,9]];
+  var FACES = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+
+  var cv = $('board'), ctx = cv.getContext('2d');
+  var U = 30, dpr = 1, hits = [], S = null, cfg = {n:4, mode:'cpu', color:0, rush:false}, raf = 0, TN = 4;
+
+  function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  // dice DOM
+  var diceEl = $('dice'), pips = [];
+  for(var q=0;q<9;q++){ var pi = document.createElement('i'); diceEl.appendChild(pi); pips.push(pi); }
+  function showFace(v){
+    var on = FACES[v] || [];
+    pips.forEach(function(p,i){ p.classList.toggle('on', on.indexOf(i) > -1); });
+  }
+
+  function pos(k,p,i){
+    if(p<0){
+      var o = YARD[k];
+      var ii = TN===2 ? (i ? 3 : 0) : i;
+      return [o[0] + ((ii%2)?4.25:1.75), o[1] + ((ii<2)?1.75:4.25)];
+    }
+    if(p<=50){ var t = TRACK[(START[k]+p)%52]; return [t[0]+.5, t[1]+.5]; }
+    if(p<56){
+      var n = p-50;
+      var m = [[n,7],[7,n],[14-n,7],[7,14-n]][k];
+      return [m[0]+.5, m[1]+.5];
+    }
+    return [[6.55,7.5],[7.5,6.55],[8.45,7.5],[7.5,8.45]][k];
+  }
+
+  /* ---------- drawing ---------- */
+  function rr(x,y,w,h,rad){
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,w,h,rad); else ctx.rect(x,y,w,h);
+  }
+  function star(cx,cy,R,rad){
+    ctx.beginPath();
+    for(var i=0;i<10;i++){
+      var a = -Math.PI/2 + i*Math.PI/5, d = (i%2)?rad:R;
+      var x = cx+Math.cos(a)*d, y = cy+Math.sin(a)*d;
+      if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y);
+    }
+    ctx.closePath();
+  }
+  function cur(){ return S.order[S.turn]; }
+
+  function draw(t){
+    if(!S) return;
+    t = t || 0;
+    var w = U*15;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,w);
+    var C = [css('--c0'),css('--c1'),css('--c2'),css('--c3')];
+    var cell = css('--cell'), line = css('--line'), yin = css('--yardin'), muted = css('--muted'), fg = css('--fg');
+
+    rr(0,0,w,w,U*.5); ctx.fillStyle = cell; ctx.fill();
+
+    // yards
+    for(var k=0;k<4;k++){
+      var active = S.order.indexOf(k) > -1;
+      var yx = YARD[k][0]*U, yy = YARD[k][1]*U;
+      ctx.globalAlpha = active ? 1 : .35;
+      ctx.fillStyle = C[k]; ctx.fillRect(yx,yy,U*6,U*6);
+      rr(yx+U,yy+U,U*4,U*4,U*.4); ctx.fillStyle = yin; ctx.fill();
+      for(var s=0;s<4;s++){
+        var sp = pos(k,-1,s);
+        ctx.beginPath(); ctx.arc(sp[0]*U,sp[1]*U,U*.62,0,7);
+        ctx.fillStyle = C[k]; ctx.globalAlpha = active ? .22 : .1; ctx.fill();
+        ctx.globalAlpha = active ? 1 : .35; ctx.lineWidth = 2; ctx.strokeStyle = C[k]; ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // track cells
+    ctx.lineWidth = 1; ctx.strokeStyle = line;
+    TRACK.forEach(function(tc){
+      ctx.fillStyle = cell; ctx.fillRect(tc[0]*U,tc[1]*U,U,U);
+      ctx.strokeRect(tc[0]*U,tc[1]*U,U,U);
+    });
+    // home columns and start squares
+    for(k=0;k<4;k++){
+      ctx.fillStyle = C[k];
+      for(var n=1;n<=5;n++){
+        var hp = pos(k,50+n,0);
+        ctx.fillRect((hp[0]-.5)*U,(hp[1]-.5)*U,U,U);
+        ctx.strokeRect((hp[0]-.5)*U,(hp[1]-.5)*U,U,U);
+      }
+      var st = TRACK[START[k]];
+      ctx.fillRect(st[0]*U,st[1]*U,U,U); ctx.strokeRect(st[0]*U,st[1]*U,U,U);
+    }
+    // centre
+    var tri = [
+      [[6,6],[6,9],[7.5,7.5]],
+      [[6,6],[9,6],[7.5,7.5]],
+      [[9,6],[9,9],[7.5,7.5]],
+      [[6,9],[9,9],[7.5,7.5]]
+    ];
+    for(k=0;k<4;k++){
+      ctx.beginPath();
+      ctx.moveTo(tri[k][0][0]*U,tri[k][0][1]*U);
+      ctx.lineTo(tri[k][1][0]*U,tri[k][1][1]*U);
+      ctx.lineTo(tri[k][2][0]*U,tri[k][2][1]*U);
+      ctx.closePath(); ctx.fillStyle = C[k]; ctx.fill();
+    }
+    // stars on safe squares
+    STARS.forEach(function(idx){
+      var sc = TRACK[idx];
+      star((sc[0]+.5)*U,(sc[1]+.5)*U,U*.3,U*.13);
+      ctx.fillStyle = muted; ctx.globalAlpha = .55; ctx.fill(); ctx.globalAlpha = 1;
+    });
+    // start squares get a white star
+    for(k=0;k<4;k++){
+      var s2 = TRACK[START[k]];
+      star((s2[0]+.5)*U,(s2[1]+.5)*U,U*.28,U*.12);
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill();
+    }
+
+    // tokens
+    var items = [];
+    S.order.forEach(function(k2){
+      S.tok[k2].forEach(function(p,i){
+        var ps = pos(k2,p,i);
+        items.push({k:k2,i:i,p:p,x:ps[0],y:ps[1]});
+      });
+    });
+    var groups = {};
+    items.forEach(function(it){
+      var key = it.x.toFixed(2)+','+it.y.toFixed(2);
+      (groups[key] = groups[key] || []).push(it);
+    });
+    Object.keys(groups).forEach(function(key){
+      var g = groups[key], cnt = g.length;
+      g.forEach(function(it,j){
+        var off = [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]][j%4];
+        if(cnt===1){ it.dx=0; it.dy=0; it.r=.36; }
+        else if(cnt===2){ it.dx = j?.2:-.2; it.dy=0; it.r=.28; }
+        else { it.dx=off[0]; it.dy=off[1]; it.r=.26; }
+        it.X = (it.x+it.dx)*U; it.Y = (it.y+it.dy)*U; it.R = it.r*U;
+      });
+    });
+    hits = [];
+    var movable = [];
+    items.forEach(function(it){
+      var m = S.phase==='choose' && it.k===cur() && S.movable.indexOf(it.i) > -1;
+      it.m = m;
+      if(m) movable.push(it);
+      else drawToken(it,C,cell);
+    });
+    var pulse = RM ? .5 : (Math.sin(t/220)+1)/2;
+    movable.forEach(function(it){
+      ctx.beginPath(); ctx.arc(it.X,it.Y,it.R+U*(.09+.1*pulse),0,7);
+      ctx.lineWidth = 3; ctx.strokeStyle = fg; ctx.stroke();
+      drawToken(it,C,cell);
+      hits.push({i:it.i,x:it.X/U,y:it.Y/U});
+    });
+
+    rr(.5,.5,w-1,w-1,U*.5); ctx.lineWidth = 1; ctx.strokeStyle = line; ctx.stroke();
+  }
+
+  function drawToken(it,C,cell){
+    ctx.beginPath(); ctx.ellipse(it.X,it.Y+it.R*.75,it.R*.85,it.R*.3,0,0,7);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(it.X,it.Y,it.R,0,7);
+    ctx.fillStyle = C[it.k]; ctx.fill();
+    ctx.lineWidth = Math.max(2,it.R*.18); ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(it.X-it.R*.3,it.Y-it.R*.3,it.R*.28,0,7);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+  }
+
+  function resize(){
+    var w = Math.floor(Math.min($('boardwrap').clientWidth, 560));
+    if(w < 100) return;
+    dpr = window.devicePixelRatio || 1;
+    cv.style.width = w+'px'; cv.style.height = w+'px';
+    cv.width = Math.round(w*dpr); cv.height = Math.round(w*dpr);
+    U = w/15;
+    draw();
+  }
+  function loop(t){ draw(t); raf = requestAnimationFrame(loop); }
+  function startLoop(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+  function stopLoop(){ cancelAnimationFrame(raf); raf = 0; draw(); }
+
+  /* ---------- game flow ---------- */
+  function later(fn,ms){
+    var g = S.gen;
+    setTimeout(function(){ if(S && S.gen===g) fn(); }, ms);
+  }
+  function isHuman(){ return S.human[cur()]; }
+
+  function init(){
+    var m = cfg.color;
+    var order = cfg.n===2 ? [m,(m+2)%4] : cfg.n===3 ? [m,(m+1)%4,(m+2)%4] : [m,(m+1)%4,(m+2)%4,(m+3)%4];
+    TN = cfg.rush ? 2 : 4;
+    S = {
+      gen: (S ? S.gen : 0) + 1, order: order, human: [false,false,false,false],
+      tok: [0,1,2,3].map(function(){ var a = []; for(var z=0;z<TN;z++) a.push(-1); return a; }),
+      turn: 0, dice: null, phase: 'setup', sixes: 0, movable: [], msg: '', winner: -1
+    };
+    order.forEach(function(k){ S.human[k] = cfg.mode==='friends' || k===cfg.color; });
+    stopLoop(); showFace(3); updateUI(); draw();
+  }
+
+  function who(k){ return S.human[k] ? (cfg.mode==='cpu' ? 'Aap' : 'Khiladi') : 'Computer'; }
+
+  function updateUI(){
+    var k = cur();
+    var root = document.documentElement.style;
+    root.setProperty('--cur', 'var(--c'+k+')');
+    root.setProperty('--pip', k===3 ? '#2B2000' : '#FFFFFF');
+    var t = '', h = '';
+    if(S.phase==='setup'){ t = 'Ludo ke liye taiyaar?'; h = 'Khiladi chuno aur game shuru karo.'; }
+    else if(S.phase==='over'){ t = NAMES[S.winner]+' jeet gaya!'; h = 'Dobara khelne ke liye Dobara khelo dabao.'; }
+    else if(S.phase==='roll'){
+      t = NAMES[k]+' ki baari';
+      h = isHuman() ? 'Dice par tap karke phenko.' : 'Computer soch raha hai...';
+    }
+    else if(S.phase==='rolling'){ t = NAMES[k]+' ka dice ghoom raha hai'; h = ''; }
+    else if(S.phase==='choose'){ t = NAMES[k]+': '+S.dice+' aaya'; h = 'Chamakte hue token par tap karo.'; }
+    else { t = NAMES[k]+': '+S.dice+' aaya'; h = ''; }
+    if(S.msg){ t = S.msg; h = ''; }
+    $('stext').textContent = t; $('shint').textContent = h; $('shint').hidden = !h;
+    diceEl.disabled = !(S.phase==='roll' && isHuman());
+    diceEl.classList.toggle('rolling', S.phase==='rolling');
+    diceEl.setAttribute('aria-label', diceEl.disabled ? 'Dice' : 'Dice phenko');
+    cv.style.cursor = S.phase==='choose' ? 'pointer' : 'default';
+
+    var box = $('chips'); box.innerHTML = '';
+    S.order.forEach(function(p){
+      var done = S.tok[p].filter(function(x){ return x===56; }).length;
+      var d = document.createElement('div');
+      d.className = 'chip' + ((S.phase!=='setup' && S.phase!=='over' && p===k) ? ' act' : '');
+      d.style.setProperty('--c','var(--c'+p+')');
+      d.innerHTML = '<span class="d"></span><div><b>'+NAMES[p]+'</b><small>'+who(p)+'</small></div><span class="n" title="Ghar pahunche">'+done+'/'+TN+'</span>';
+      box.appendChild(d);
+    });
+  }
+
+  function say(m){ S.msg = m; updateUI(); }
+
+  function beginTurn(){
+    S.phase = 'roll'; S.dice = null; S.msg = ''; S.movable = [];
+    updateUI(); draw();
+    if(!isHuman()) later(roll, 900);
+  }
+  function nextTurn(){
+    S.turn = (S.turn+1) % S.order.length; S.sixes = 0;
+    beginTurn();
+  }
+
+  function roll(){
+    if(S.phase!=='roll') return;
+    S.phase = 'rolling'; S.msg = ''; updateUI();
+    var g = S.gen, n = 0;
+    var iv = setInterval(function(){
+      if(!S || S.gen!==g){ clearInterval(iv); return; }
+      showFace(1+Math.floor(Math.random()*6));
+      if(++n >= 9){ clearInterval(iv); afterRoll(); }
+    }, 75);
+  }
+
+  function legal(k){
+    var out = [], yardDone = false, d = S.dice;
+    for(var i=0;i<TN;i++){
+      var p = S.tok[k][i];
+      if(p<0){ if(d===6 && !yardDone){ out.push(i); yardDone = true; } }
+      else if(p<56 && p+d<=56) out.push(i);
+    }
+    return out;
+  }
+
+  function score(k,i){
+    var p = S.tok[k][i], d = S.dice, np = p<0 ? 0 : p+d, sc = 0;
+    if(np===56) sc += 100;
+    if(p<0) sc += 60;
+    if(np<=50){
+      var idx = (START[k]+np)%52;
+      if(SAFE[idx]) sc += 25;
+      else S.order.forEach(function(o){
+        if(o===k) return;
+        S.tok[o].forEach(function(q){ if(q>=0 && q<=50 && (START[o]+q)%52===idx) sc += 80; });
+      });
+    }
+    if(np>50 && np<56) sc += 20;
+    return sc + np*.5 + Math.random();
+  }
+
+  function afterRoll(){
+    var v = 1+Math.floor(Math.random()*6);
+    S.dice = v; showFace(v);
+    S.sixes = (v===6) ? S.sixes+1 : 0;
+    if(S.sixes===3){ say('Lagatar teen 6! Baari chali gayi.'); later(nextTurn,1300); return; }
+    var k = cur(), mv = legal(k);
+    if(!mv.length){ S.phase = 'moving'; say(NAMES[k]+': '+v+' aaya, koi chaal nahi.'); later(nextTurn,1200); return; }
+    S.movable = mv;
+    if(mv.length===1){ S.phase = 'moving'; updateUI(); later(function(){ moveToken(mv[0]); }, 550); return; }
+    if(!isHuman()){
+      var best = mv[0], bs = -1e9;
+      mv.forEach(function(i){ var sc = score(k,i); if(sc>bs){ bs = sc; best = i; } });
+      S.phase = 'moving'; updateUI(); draw();
+      later(function(){ moveToken(best); }, 800);
+      return;
+    }
+    S.phase = 'choose'; updateUI(); startLoop();
+  }
+
+  function moveToken(i){
+    var k = cur();
+    S.phase = 'moving'; S.movable = []; S.msg = '';
+    stopLoop(); updateUI();
+    var steps = S.tok[k][i] < 0 ? 1 : S.dice, n = 0;
+    function step(){
+      if(S.tok[k][i] < 0) S.tok[k][i] = 0; else S.tok[k][i]++;
+      draw();
+      if(++n < steps) later(step,130); else later(function(){ land(k,i); },170);
+    }
+    step();
+  }
+
+  function land(k,i){
+    var p = S.tok[k][i], captured = 0;
+    if(p<=50){
+      var idx = (START[k]+p)%52;
+      if(!SAFE[idx]){
+        S.order.forEach(function(o){
+          if(o===k) return;
+          for(var j=0;j<TN;j++){
+            var q = S.tok[o][j];
+            if(q>=0 && q<=50 && (START[o]+q)%52===idx){ S.tok[o][j] = -1; captured++; }
+          }
+        });
+      }
+    }
+    draw();
+    if(S.tok[k].every(function(x){ return x===56; })){ win(k); return; }
+    if(captured>0 || p===56 || S.dice===6){
+      say(captured>0 ? 'Kat gaya! Dobara phenko.' : (p===56 ? 'Ghar pahunch gaya! Dobara phenko.' : '6 aaya! Dobara phenko.'));
+      later(beginTurn,1000);
+    } else nextTurn();
+  }
+
+  function win(k){
+    S.phase = 'over'; S.winner = k; S.msg = '';
+    updateUI(); draw();
+    $('start').textContent = 'Dobara khelo';
+    $('setup').hidden = false; $('newgame').hidden = true;
+  }
+
+  /* ---------- input ---------- */
+  diceEl.addEventListener('click', function(){ if(S && S.phase==='roll' && isHuman()) roll(); });
+
+  cv.addEventListener('pointerdown', function(e){
+    if(!S || S.phase!=='choose') return;
+    var b = cv.getBoundingClientRect();
+    var x = (e.clientX-b.left)/U, y = (e.clientY-b.top)/U, best = -1, bd = .8;
+    hits.forEach(function(h){
+      var d = Math.hypot(h.x-x,h.y-y);
+      if(d<bd){ bd = d; best = h.i; }
+    });
+    if(best>-1) moveToken(best);
+  });
+
+  function setSeg(id,val,attr){
+    var btns = $(id).querySelectorAll('button');
+    for(var i=0;i<btns.length;i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-v')===String(val) ? 'true' : 'false');
+  }
+  $('segN').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    cfg.n = +b.getAttribute('data-v'); setSeg('segN',cfg.n); init();
+  });
+  $('segG').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    cfg.rush = b.getAttribute('data-v')==='rush'; setSeg('segG', cfg.rush ? 'rush' : 'classic'); init();
+  });
+  $('segC').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    cfg.color = +b.getAttribute('data-v'); setSeg('segC',cfg.color); init();
+  });
+  $('segM').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    cfg.mode = b.getAttribute('data-v'); setSeg('segM',cfg.mode); init();
+  });
+  $('start').addEventListener('click', function(){
+    init();
+    $('setup').hidden = true; $('newgame').hidden = false;
+    beginTurn();
+  });
+  $('newgame').addEventListener('click', function(){
+    init(); $('setup').hidden = false; $('newgame').hidden = true;
+    $('start').textContent = 'Game shuru karo';
+  });
+
+  window.addEventListener('resize', resize);
+  if(window.ResizeObserver) new ResizeObserver(resize).observe($('boardwrap'));
+  if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ draw(); });
+  new MutationObserver(function(){ draw(); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+  init(); resize();
+})();
+</script>
+
+</html>
