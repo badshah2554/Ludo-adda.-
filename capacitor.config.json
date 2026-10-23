@@ -1,0 +1,6 @@
+{
+  "appId": "com.ludoadda.game",
+  "appName": "Ludo Adda",
+  "webDir": "www",
+  "android": { "backgroundColor": "#12161C" }
+}
